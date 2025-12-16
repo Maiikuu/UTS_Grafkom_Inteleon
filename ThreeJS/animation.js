@@ -76,7 +76,7 @@ scene.add(plane);
 // Load GLTF
 let mixer;
 const loader = new GLTFLoader();
-loader.load('LuxoJR.glb', function (gltf) {
+loader.load('LuxoJRnew.glb', function (gltf) {
     scene.add(gltf.scene);
 
     gltf.scene.traverse((child)  =>  {
