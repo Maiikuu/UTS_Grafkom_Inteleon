@@ -86,9 +86,6 @@ loader.load('LuxoJR.glb', function (gltf) {
     console.error(error);
 });
 
-gltf.scene.traverse(o => console.log(o.name, o.position));
-
-
 // Animate
 const clock = new THREE.Clock();
 function animate() {
