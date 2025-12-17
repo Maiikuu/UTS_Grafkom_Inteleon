@@ -21,7 +21,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   1000
 );
-camera.position.set(0, 0, 50);
+camera.position.set(-12, 3, -2);
 
 // Orbit controls
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -58,7 +58,7 @@ scene.add(light);
 scene.add(light.target);
 
 var directionalLightHelper = new THREE.DirectionalLightHelper(light);
-scene.add(directionalLightHelper);
+// scene.add(directionalLightHelper);
 
 // Plane
 let size = 40;
@@ -82,6 +82,14 @@ loader.load('LuxoJRnew.glb', function (gltf) {
     gltf.scene.traverse((child)  =>  {
       console.log(child.name);
     });
+    console.log("Animations", gltf.animations);
+
+    if (gltf.animations && gltf.animations.length > 0) {
+      mixer = new THREE.AnimationMixer(gltf.scene);
+
+      const action = mixer.clipAction(gltf.animations[0]);
+      action.play();
+    }
 }, undefined, function (error) {
     console.error(error);
 });
