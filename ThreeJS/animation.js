@@ -1,15 +1,12 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
-import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
 // Renderer
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap = true;
-renderer.shadowMap = THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 // Scene
@@ -86,39 +83,29 @@ let power = 0;
 // Load GLTF
 let mixer;
 const loader = new GLTFLoader();
-loader.load('LuxoJRnew.glb', (gltf) => {
+loader.load('coloredluxojr.glb', (gltf) => {
   scene.add(gltf.scene);
 
   gltf.scene.traverse((child) => {
-    if (child.name === "BigBulb") {
-      bigBulb = child;
+    if (child.isMesh && child.material) {
+      child.material.needsUpdate = true;
     }
-  });
 
-  gltf.scene.traverse((child) => {
     // Detect floor meshes
     if (child.isMesh && child.name.startsWith("Plane")) {
-      child.gepmetry.computeBoundingBox();
+      child.geometry.computeBoundingBox();
       const box = child.geometry.boundingBox;
 
-      const size = new THREE.Vector3();
-      box.getSize(size);
-      const area = size.x * size.z;
-
+      const area = (box.max.x - box.min.x) * (box.max.z - box.min.z);
       if (area > maxArea) {
         maxArea = area;
         floorobj = child;
       }
     }
   });
-  if (!floorobj) {
-    console.warn("Floor object not found");
-  } else {
-    floorobj.material.transparent = true;
-    floorobj.material.opacity = 0.5;
-    floorobj.material.depthWrite = false;
-    floorobj.receiveShadow = true;
-  }
+
+  // Find the bulb using .getObjectByName for efficiency
+  bigBulb = gltf.scene.getObjectByName("BigBulb");
 
   if (!bigBulb) {
     console.error("BigBulb not found");
@@ -127,11 +114,12 @@ loader.load('LuxoJRnew.glb', (gltf) => {
 
   if (!floorobj) {
     console.warn("Floor object not found");
+  } else {
+    floorobj.material.transparent = true;
+    floorobj.material.opacity = 0.5;
+    floorobj.material.depthWrite = false;
+    floorobj.receiveShadow = true;
   }
-
-  floorobj.material.transparent = true;
-  floorobj.material.opacity = 0.5;
-  floorobj.material.depthWrite = false;
 
   bigBulb.castShadow = true;
   bigBulb.receiveShadow = false;
@@ -150,50 +138,42 @@ loader.load('LuxoJRnew.glb', (gltf) => {
   console.log(gltf.animations[0].tracks.map(t => t.name));
 
 });
-renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 
-window.addEventListener("keydown", (e) => {
-  if (!bigBulb) return;
+// window.addEventListener("keydown", (e) => {
+//   if (!bigBulb) return;
 
-  const speed = 0.3;
+//   const speed = 0.3;
 
-  switch (e.key) {
-    case "ArrowUp":
-      bigBulb.position.z -= speed;
-      break;
-    case "ArrowDown":
-      bigBulb.position.z += speed;
-      break;
-    case "ArrowLeft":
-      bigBulb.position.x -= speed;
-      break;
-    case "ArrowRight":
-      bigBulb.position.x += speed;
-      break;
-    case "w":
-      bigBulb.position.y += speed;
-      break;
-    case "s":
-      bigBulb.position.y -= speed;
-      break;
-  }
-});
+//   switch (e.key) {
+//     case "ArrowUp":
+//       bigBulb.position.z -= speed;
+//       break;
+//     case "ArrowDown":
+//       bigBulb.position.z += speed;
+//       break;
+//     case "ArrowLeft":
+//       bigBulb.position.x -= speed;
+//       break;
+//     case "ArrowRight":
+//       bigBulb.position.x += speed;
+//       break;
+//     case "w":
+//       bigBulb.position.y += speed;
+//       break;
+//     case "s":
+//       bigBulb.position.y -= speed;
+//       break;
+//   }
+// });
+
 
 // Animate
 const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
-
-  if (bigBulb && bulbLight) {
-    power = Math.min(power + 0.03, 6);
-    bulbLight.intensity = power;
-    bigBulb.material.emissiveIntensity = power * 0.3;
-  }
-  if (bigBulb) {
-  bigBulb.position.x += 1.1;
-}
 
   const delta = clock.getDelta();
   if (mixer) mixer.update(delta);
