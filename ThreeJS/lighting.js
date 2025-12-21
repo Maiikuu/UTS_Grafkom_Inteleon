@@ -11,7 +11,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 //setup shadow
-renderer.shadowMap.enabled = true;
+// renderer.shadowMap.enabled = true;
 
 //setup scene
 const scene = new THREE.Scene();
@@ -37,16 +37,16 @@ var skyColor = 0xB1E1FF;  // light blue
 var groundColor = 0xB97A20;  // brownish orange
 intensity = .5;
 light = new THREE.HemisphereLight(skyColor, groundColor, intensity);
-scene.add(light);
+// scene.add(light);
 
 // var directionalLightHelper = new THREE.HemisphereLightHelper(light);
 // scene.add(directionalLightHelper);
 
 // Directional Light
 color = 0xFFFFFF;
-light = new THREE.DirectionalLight(color, intensity);
-light.position.set(0, 10, 0);
-light.target.position.set(-5, 0, 0);
+light = new THREE.DirectionalLight(color, 10);
+light.position.set(0, 20, 0);
+light.target.position.set(0, 0, 0);
 light.castShadow = true;
 light.shadow.camera.near = 0.1
 light.shadow.camera.far = 50
@@ -59,7 +59,7 @@ scene.add(light);
 scene.add(light.target);
 
 var directionalLightHelper = new THREE.DirectionalLightHelper(light);
-// scene.add(directionalLightHelper);
+scene.add(directionalLightHelper);
 
 // Point Light
 intensity = 1500;
@@ -68,10 +68,10 @@ var distance = 30;
 light = new THREE.PointLight(color, intensity, distance);
 light.position.set(0, 6, 0);
 light.castShadow = true;
-scene.add(light);
+// scene.add(light);
 
 var pointLightHelper = new THREE.PointLightHelper(light);
-scene.add(pointLightHelper);
+// scene.add(pointLightHelper);
 
 // Spot Light
 color = 0xFF0000;
@@ -81,14 +81,14 @@ distance = 300;
 light = new THREE.SpotLight(color, intensity, distance, angle);
 light.position.set(-50, 10, 0);
 light.target.position.set(10, 10, 0);
-// light.castShadow = true;
+light.castShadow = true;
 // light.shadow.camera.far = 0;
 // scene.add(new THREE.CameraHelper(light.shadow.camera))
-scene.add(light);
-scene.add(light.target);
+// scene.add(light);
+// scene.add(light.target);
 
 var spotLightHelper = new THREE.SpotLightHelper(light);
-scene.add(spotLightHelper);
+// scene.add(spotLightHelper);
 
 // Geometry - pake mesh phong
 let size = 40;
@@ -118,12 +118,15 @@ scene.add(mesh);
 
 size = 4;
 geometry = new THREE.BoxGeometry(size, size, size);
-material = new THREE.MeshPhongMaterial({ color: '#8AC', transpare
+material = new THREE.MeshPhongMaterial({
+    color: '#8AC',
+    transparent: true,
+    opacity: 1
+});
 
- });
 mesh = new THREE.Mesh(geometry, material);
 mesh.position.set(size + 1, size / 2, 0);
-mesh.castShadow =  true;
+// mesh.castShadow = true;
 scene.add(mesh);
 
 function animate() {
