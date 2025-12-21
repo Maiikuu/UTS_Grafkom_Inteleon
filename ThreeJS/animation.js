@@ -119,10 +119,10 @@ let floorobj = null;
 let maxArea = 0;
 
 // Bulb light constants
-const BIG_BULB_EMISSIVE = 0.9;
-const BIG_BULB_LIGHT_INTENSITY = 1.2;
-const SMALL_BULB_EMISSIVE = 0.6;
-const SMALL_BULB_LIGHT_INTENSITY = 0.9;
+const BIG_BULB_EMISSIVE = 6.0;
+const BIG_BULB_LIGHT_INTENSITY = 100;
+const SMALL_BULB_EMISSIVE = 4.0;
+const SMALL_BULB_LIGHT_INTENSITY = 50;
 
 // small-lamp hop state (Luxo)
 let smallLampStartPos = null;
@@ -251,7 +251,14 @@ loader.load('coloredluxojr.glb', (gltf) => {
 
   gltf.scene.traverse((child) => {
     if (child.isMesh && child.material) {
-      child.material.needsUpdate = true;
+      const oldMat = child.material;
+      child.material = new THREE.MeshPhongMaterial({
+        color: oldMat.color,
+        map: oldMat.map,
+        specular: 0x555555,
+        shininess: 30,
+        side: oldMat.side,
+      });
     }
     // Detect floor meshes
     if (child.isMesh && child.name.startsWith("Floor")) {
@@ -297,7 +304,7 @@ loader.load('coloredluxojr.glb', (gltf) => {
     floorobj.receiveShadow = true;
   }
 
-  bigBulb.castShadow = true;
+  bigBulb.castShadow = false;
   bigBulb.receiveShadow = false;
 
   bigBulb.material.emissive = new THREE.Color(0xffffaa);
@@ -311,7 +318,7 @@ loader.load('coloredluxojr.glb', (gltf) => {
   // remember gltf.scene for later control
   currentGltfScene = gltf.scene;
 
-  bulbLight = new THREE.PointLight(0xfff2cc, BIG_BULB_LIGHT_INTENSITY, 15, 2);
+  bulbLight = new THREE.PointLight(0xfff2cc, BIG_BULB_LIGHT_INTENSITY, 100, 2);
   bulbLight.castShadow = true;
 
   // keep shadows clean
@@ -326,7 +333,7 @@ loader.load('coloredluxojr.glb', (gltf) => {
 
   // Move small lamp to the right relative to the *current* camera view
   // (useful to adjust start position without editing the glb)
-  try { moveSmallLampRight(1.5); } catch(e) { /* ignore if not ready */ }
+  // try { moveSmallLampRight(1.5); } catch(e) { /* ignore if not ready */ }
 
 
 
@@ -598,14 +605,14 @@ function setupPartsForGLTF(gltf) {
       console.log(`Small lamp root fallback: "${smallLamp.name || smallLamp.type}"`);
     }
 
-    smallBulb.castShadow = true;
+    smallBulb.castShadow = false;
     smallBulb.receiveShadow = false;
     if (smallBulb.material) {
       smallBulb.material.emissive = new THREE.Color(0xffe6b3);
       smallBulb.material.emissiveIntensity = SMALL_BULB_EMISSIVE;
     }
 
-    smallBulbLight = new THREE.PointLight(0xfff2cc, SMALL_BULB_LIGHT_INTENSITY, 8, 2);
+    smallBulbLight = new THREE.PointLight(0xfff2cc, SMALL_BULB_LIGHT_INTENSITY, 60, 2);
     smallBulbLight.castShadow = true;
     smallBulbLight.shadow.mapSize.set(512, 512);
     smallBulbLight.shadow.bias = -0.0001;
