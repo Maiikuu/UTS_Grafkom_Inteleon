@@ -87,6 +87,9 @@ var intensity = 0.7;
 var light = new THREE.AmbientLight(color, intensity);
 scene.add(light);
 
+var ambientlighthelper = new THREE.PointLightHelper(light);
+scene.add(ambientlighthelper);
+
 // Directional Light
 color = 0xFFFFFF;
 light = new THREE.DirectionalLight(color, 2);
@@ -106,7 +109,7 @@ scene.add(light);
 scene.add(light.target);
 
 var directionalLightHelper = new THREE.DirectionalLightHelper(light);
-scene.add(directionalLightHelper);
+// scene.add(directionalLightHelper);
 
 let bigBulb;
 let bulbLight;
@@ -326,16 +329,21 @@ loader.load('coloredluxojr.glb', (gltf) => {
   bulbLight.shadow.bias = -0.0001;
 
   // place light inside bulb
-  bulbLight.position.set(0, 0, 0);
+  if (bigBulb.geometry) {
+    bigBulb.geometry.computeBoundingBox();
+    const center = new THREE.Vector3();
+    bigBulb.geometry.boundingBox.getCenter(center);
+    bulbLight.position.copy(center);
+  }
 
   // attach to bulb
   bigBulb.add(bulbLight);
+  const bulbLightHelper = new THREE.PointLightHelper(bulbLight, 0.5);
+  bigBulb.add(bulbLightHelper);
 
   // Move small lamp to the right relative to the *current* camera view
   // (useful to adjust start position without editing the glb)
   // try { moveSmallLampRight(1.5); } catch(e) { /* ignore if not ready */ }
-
-
 
 });
 renderer.outputEncoding = THREE.sRGBEncoding;
@@ -576,6 +584,18 @@ function setupPartsForGLTF(gltf) {
       o.castShadow = true;
       o.receiveShadow = false;
       o.material && (o.material.needsUpdate = true);
+      if (name === 'Big_Head' && o.material) {
+        o.material.side = THREE.DoubleSide;
+        o.material.shadowSide = THREE.DoubleSide;
+      }
+    }
+  });
+
+  otherParts.forEach(name => {
+    const o = gltf.scene.getObjectByName(name);
+    if (o && o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
     }
   });
 
@@ -612,11 +632,19 @@ function setupPartsForGLTF(gltf) {
       smallBulb.material.emissiveIntensity = SMALL_BULB_EMISSIVE;
     }
 
-    smallBulbLight = new THREE.PointLight(0xfff2cc, SMALL_BULB_LIGHT_INTENSITY, 60, 2);
+    smallBulbLight = new THREE.PointLight(0xfff2cc, 20, 8, 2);
     smallBulbLight.castShadow = true;
     smallBulbLight.shadow.mapSize.set(512, 512);
-    smallBulbLight.shadow.bias = -0.0001;
+    smallBulbLight.shadow.bias = 0.1;
+    if (smallBulb.geometry) {
+      smallBulb.geometry.computeBoundingBox();
+      const center = new THREE.Vector3();
+      smallBulb.geometry.boundingBox.getCenter(center);
+      smallBulbLight.position.copy(center);
+    }
     smallBulb.add(smallBulbLight);
+    const smallBulbLightHelper = new THREE.PointLightHelper(smallBulbLight, 0.5);
+    smallBulb.add(smallBulbLightHelper);
 
     // record starting position for hop animation (apply right offset)
     if (smallLamp) {
