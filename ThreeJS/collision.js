@@ -112,6 +112,8 @@ bb3.setFromObject(mesh);
 let bb3Helper = new THREE.Box3Helper(bb3);
 scene.add(bb3Helper);
 
+// ... (Bagian atas kode tetap sama sampai var player = mesh) ...
+
 var player = mesh;
 
 const speed = 0.1;
@@ -141,38 +143,46 @@ function move() {
     if (keys.d) player.position.x += speed;
 }
 
+// FUNGSI BARU: Mengembalikan true jika nabrak, false jika aman
 function checkCollision() {
-    if (bb3.containsBox(bb1)) {
-        console.log("contain cube");
+    // Cek Box Static (bb1)
+    if (bb3.intersectsBox(bb1)) {
         player.material.opacity = 0.5;
         player.material.color = new THREE.Color("red");
-
-    } else if (bb3.intersectsBox(bb1)) {
-        console.log("intersect cube");
-        player.material.opacity = 0.3;
-        player.material.color = new THREE.Color("green");
-
-    } else if (bb3.intersectsSphere(bs1)) {
-        console.log("intersect sphere");
-        player.material.opacity = 0.3;
-        player.material.color = new THREE.Color("green");
-
+        return true; // NABRAK!
+    } 
+    // Cek Sphere Static (bs1)
+    else if (bb3.intersectsSphere(bs1)) {
+        player.material.opacity = 0.5;
+        player.material.color = new THREE.Color("red");
+        return true; // NABRAK!
     }
+    // Aman
     else {
         player.material.opacity = 1;
-        player.material.color = new THREE.Color("black");
+        player.material.color = new THREE.Color("black"); // Atau warna asal transparanmu
+        return false; // AMAN
     }
-
-
 }
 
 function animate() {
+    // 1. Simpan posisi sebelum gerak
+    const oldPos = player.position.clone();
+
+    // 2. Coba gerak
     move();
 
-    //Update posisi bb sesuai player
+    // 3. Update Bounding Box Player di posisi baru
     bb3.copy(player.geometry.boundingBox).applyMatrix4(player.matrixWorld);
 
-    checkCollision();
+    // 4. Cek apakah posisi baru ini nabrak?
+    if (checkCollision()) {
+        // 5. Kalau nabrak, batalkan gerakan (kembali ke oldPos)
+        player.position.copy(oldPos);
+        
+        // Update BB lagi karena posisi player berubah balik
+        bb3.copy(player.geometry.boundingBox).applyMatrix4(player.matrixWorld);
+    }
 
     renderer.render(scene, camera);
     controls.update();

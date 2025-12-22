@@ -24,6 +24,27 @@ camera.position.set(-12, 1, -2);
 // Orbit controls
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 5, 0);
+
+// 1. Batasi ROTASI (Agar tidak bisa nengok dari bawah tanah)
+// Math.PI / 2 = 90 derajat (rata tanah).
+controls.maxPolarAngle = Math.PI / 2 - 0.1; 
+
+// 2. Batasi POSISI & PANNING (Agar kamera tidak tenggelam saat digeser)
+controls.addEventListener('change', () => {
+    // A. Batasi Tinggi Kamera (Camera Y)
+    // Angka 0.5 disesuaikan agar kamera selalu mengambang minimal 0.5 unit di atas meja
+    if (camera.position.y < 0.5) {
+        camera.position.y = 0.5;
+    }
+
+    // B. Batasi Titik Fokus (Target Y)
+    // Kita kunci target agar tidak bisa digeser ke kolong meja
+    const minHeight = -0.2; // Sedikit di atas permukaan meja (meja di y=-0.26)
+    
+    if (controls.target.y < minHeight) {
+        controls.target.y = minHeight;
+    }
+});
 // Enable smooth rotation and reasonable limits for an orbiting camera
 controls.enableDamping = true;
 controls.dampingFactor = 0.06; // smooth the motion
@@ -475,6 +496,82 @@ function playOnceSequence(retries = 12) {
   setTimeout(() => { animationsEnabled = false; smallHop.enabled = false; _sequencePlaying = false; console.log('playOnceSequence: finished'); }, 5000);
 }
 
+// ==========================================
+// TAMBAHAN: LINGKUNGAN KAMAR & MEJA BELAJAR
+// ==========================================
+
+// Ubah warna background scene agar seperti dinding kamar yang terang
+scene.background = new THREE.Color(0xd0e0e3); // Biru muda pastel (Cat dinding)
+// Atau pakai warna cream: 0xfdf5e6
+
+function createStudyRoom() {
+    // 1. MATERIAL (Bahan)
+    // Texture Kayu (Warna Coklat)
+    const woodMat = new THREE.MeshStandardMaterial({ 
+        color: 0x8b5a2b, 
+        roughness: 0.6, 
+        metalness: 0.1 
+    });
+    
+    // Texture Dinding (Putih Cream)
+    const wallMat = new THREE.MeshStandardMaterial({ 
+        color: 0xfffff0, 
+        side: THREE.BackSide // Agar terlihat dari sisi dalam
+    });
+
+    // Texture Lantai Kamar (Abu-abu / Karpet)
+    const floorMat = new THREE.MeshStandardMaterial({ 
+        color: 0x555555,
+        roughness: 0.8
+    });
+
+    // 2. BUAT GROUP (Agar meja & kaki bisa diputar barengan)
+    const tableGroup = new THREE.Group();
+    scene.add(tableGroup);
+
+    // 2. BUAT MEJA (Desk)
+    // Permukaan Meja (Table Top)
+    const deskGeo = new THREE.BoxGeometry(14, 0.5, 8); 
+    const desk = new THREE.Mesh(deskGeo, woodMat);
+    desk.position.set(0, -0.26, 0); // Posisi y=-0.26 agar pas di bawah roda/kabel
+    desk.receiveShadow = true;
+    desk.castShadow = true;
+    tableGroup.add(desk); // Masukkan ke Group
+
+    // Kaki Meja (Legs)
+    const legGeo = new THREE.BoxGeometry(0.5, 6, 0.5);
+    const legPositions = [
+        [-6, -3.25, 3],  // Kiri Depan
+        [6, -3.25, 3],   // Kanan Depan
+        [-6, -3.25, -3], // Kiri Belakang
+        [6, -3.25, -3]   // Kanan Belakang
+    ];
+
+    legPositions.forEach(pos => {
+        const leg = new THREE.Mesh(legGeo, woodMat);
+        leg.position.set(pos[0], pos[1], pos[2]);
+        leg.castShadow = true;
+        leg.receiveShadow = true;
+        tableGroup.add(leg); // Masukkan ke Group
+    });
+
+    // 5. ROTASI MEJA 90 DERAJAT
+    // Ini kuncinya: Memutar meja agar sisi panjangnya menghadap kamera
+    tableGroup.rotation.y = -Math.PI / 2;
+
+    // 4. LANTAI KAMAR (Room Floor - di bawah meja)
+    const roomFloorGeo = new THREE.PlaneGeometry(40, 40);
+    const roomFloor = new THREE.Mesh(roomFloorGeo, floorMat);
+    roomFloor.rotation.x = -Math.PI / 2; // Tidurkan jadi lantai
+    roomFloor.position.y = -6.2; // Di dasar kaki meja
+    roomFloor.receiveShadow = true;
+    scene.add(roomFloor);
+  
+}
+
+// PANGGIL FUNGSINYA AGAR MUNCUL
+createStudyRoom();
+
 function animate() {
   requestAnimationFrame(animate);
 
@@ -902,3 +999,47 @@ function setupPartsForGLTF(gltf) {
     console.warn('Ballsml not found in GLTF');
   }
 }
+
+// 1. Membuat Tombol HTML via JavaScript
+const rotBtn = document.createElement('button');
+rotBtn.id = 'toggleRotBtn';
+rotBtn.innerText = 'Stop Rotation'; // Teks awal
+rotBtn.style.position = 'absolute';
+rotBtn.style.top = '20px';
+rotBtn.style.left = '20px';
+rotBtn.style.padding = '10px 15px';
+rotBtn.style.fontSize = '14px';
+rotBtn.style.cursor = 'pointer';
+rotBtn.style.zIndex = '9999'; // Pastikan tombol ada di atas canvas
+rotBtn.style.borderRadius = '5px';
+rotBtn.style.border = 'none';
+rotBtn.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+rotBtn.style.fontFamily = 'Arial, sans-serif';
+
+document.body.appendChild(rotBtn);
+
+// 2. Fungsi untuk Mengubah Status Rotasi
+function toggleRotation() {
+    // Balik status autoRotate (True jadi False, False jadi True)
+    controls.autoRotate = !controls.autoRotate;
+    
+    // Update teks tombol sesuai status
+    if (controls.autoRotate) {
+        rotBtn.innerText = 'Stop Rotation';
+        rotBtn.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+    } else {
+        rotBtn.innerText = 'Start Rotation';
+        rotBtn.style.backgroundColor = 'rgba(255, 100, 100, 0.8)'; // Merah muda saat stop
+    }
+}
+
+// 3. Event Listener Klik Tombol
+rotBtn.addEventListener('click', toggleRotation);
+
+// 4. Event Listener Keyboard (Shortcut SPASI)
+window.addEventListener('keydown', (e) => {
+    // Cek jika tombol yang ditekan adalah Spasi
+    if (e.code === 'Space') { 
+        toggleRotation();
+    }
+});
