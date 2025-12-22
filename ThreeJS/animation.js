@@ -83,18 +83,19 @@ window.addEventListener('mouseup', (e) => {
 
 //Ambient Lights
 var color = 0xFFFFFF;
-var intensity = 0.7;
+var intensity = 0.12;
 var light = new THREE.AmbientLight(color, intensity);
 scene.add(light);
+scene.remove(ambientlighthelper);
 
 var ambientlighthelper = new THREE.PointLightHelper(light);
-scene.add(ambientlighthelper);
+// scene.add(ambientlighthelper);
 
 // Directional Light
 color = 0xFFFFFF;
 light = new THREE.DirectionalLight(color, 2);
-light.position.set(0, 5, 4);
-light.target.position.set(-4, 0, 0);
+light.position.set(0, 8, 4);
+light.target.position.set(-2, 0, 0);
 light.castShadow = true;
 light.shadow.mapSize.width = 1024;
 light.shadow.mapSize.height = 1024;
@@ -116,6 +117,7 @@ let bulbLight;
 let smallBulb;
 let smallBulbLight;
 let smallLamp;
+let smallHead = null;
 let smallLampRoot = null; // root we create to control hopping without fighting GLTF animation
 let lamp = null; // root object for lamp (declared to avoid ReferenceError)
 let floorobj = null;
@@ -157,11 +159,18 @@ let bigHeadFlick = { active: false, startTime: 0, duration: 0.9, angle: -1.2 };
 let lampStartPos = null;
 let bigBulbStartPos = null;
 let currentGltfScene = null;
+let smallHeadInitialQuat = null;
 let bigHeadInitialQuat = null;
 let animationsEnabled = false;
 const _tmpVec = new THREE.Vector3();
 const _tmpQuat = new THREE.Quaternion();
-const _tmpOffset = new THREE.Vector3(0.6, -0.12, 0);
+
+// State for big head inspection animation and collision
+let bigHeadCollider = null;
+let smallHeadCollider = null;
+let inspectionTime = 0;
+let inspectionTimeDirection = 1;
+let reboundUntil = 0;
 
 // Procedural cable storage
 const cables = [];
@@ -286,6 +295,18 @@ loader.load('coloredluxojr.glb', (gltf) => {
     return;
   }
 
+  if (!bigHead) bigHead = gltf.scene.getObjectByName('Big_Head');
+
+  if (bigHead) {
+    bigHead.add(bigBulb);
+    bigBulb.rotation.set(0, 0, 0);
+    if (bigHead.geometry) {
+      bigHead.geometry.computeBoundingSphere();
+      // Initialize collider, will be updated in animate()
+      if (!bigHeadCollider) bigHeadCollider = new THREE.Sphere();
+    }
+  }
+
   // record big bulb's start (local) position so we can restore it after flick
   bigBulbStartPos = bigBulb.position.clone();
 
@@ -321,7 +342,7 @@ loader.load('coloredluxojr.glb', (gltf) => {
   // remember gltf.scene for later control
   currentGltfScene = gltf.scene;
 
-  bulbLight = new THREE.PointLight(0xfff2cc, BIG_BULB_LIGHT_INTENSITY, 100, 2);
+  bulbLight = new THREE.PointLight(0xfff2cc, BIG_BULB_LIGHT_INTENSITY, 40, 2);
   bulbLight.castShadow = true;
 
   // keep shadows clean
@@ -370,6 +391,11 @@ function startLuxoHop(opts = {}) {
   }
   smallHop.luxo = { active: true, startTime: clock.getElapsedTime(), seq, totalTime: cum, totalDistance: distance, startPos: smallLampStartPos.clone() };
   return smallHop.luxo;
+}
+
+function triggerCrouch() {
+  if (smallHop.crouch && smallHop.crouch.active) return;
+  smallHop.crouch = { active: true, startTime: clock.getElapsedTime(), duration: 0.5 };
 }
 
 function triggerFlick() {
@@ -433,18 +459,21 @@ function playOnceSequence(retries = 12) {
   }
 
   console.log('playOnceSequence: starting Luxo hop');
-  const luxo = startLuxoHop({ distance: 1.6, heights: [1.2, 0.6], baseDuration: 0.45 });
+  
+  // Trigger crouch first
+  triggerCrouch();
 
-  // schedule big flick after first bounce completes (rough timing)
-  const flickDelay = (luxo ? Math.min(luxo.totalTime * 0.7, 0.9) : 0.9);
-  setTimeout(() => { console.log('playOnceSequence: triggering flick'); triggerFlick(); }, flickDelay * 1000);
+  // Delay hop start until after crouch
+  setTimeout(() => {
+    const luxo = startLuxoHop({ distance: 1.6, heights: [1.2, 0.6], baseDuration: 0.45 });
+    // schedule big flick after first bounce completes (rough timing)
+    const flickDelay = (luxo ? Math.min(luxo.totalTime * 0.7, 0.9) : 0.9);
+    setTimeout(() => { console.log('playOnceSequence: triggering flick'); triggerFlick(); }, flickDelay * 1000);
+  }, 500);
 
   // schedule end: allow flick + ball travel ~ 4s then stop animations
-  setTimeout(() => { animationsEnabled = false; smallHop.enabled = false; _sequencePlaying = false; console.log('playOnceSequence: finished'); }, 4500);
+  setTimeout(() => { animationsEnabled = false; smallHop.enabled = false; _sequencePlaying = false; console.log('playOnceSequence: finished'); }, 5000);
 }
-
-// Key handler: P to play once
-window.addEventListener('keydown', (e)=>{ if (e.key === 'p' || e.key === 'P') playOnceSequence(); });
 
 function animate() {
   requestAnimationFrame(animate);
@@ -456,6 +485,32 @@ function animate() {
   if (typeof controls !== 'undefined' && controls) controls.update();
 
   const t = clock.getElapsedTime();
+
+  // Update inspection animation time, handling rebound
+  if (t > reboundUntil) {
+    inspectionTimeDirection = 1; // Resume normal forward animation
+  }
+  inspectionTime += delta * inspectionTimeDirection;
+
+  // small lamp crouch (anticipation)
+  if (smallHop.crouch && smallHop.crouch.active) {
+    const elapsed = t - smallHop.crouch.startTime;
+    if (elapsed >= smallHop.crouch.duration) {
+      smallHop.crouch.active = false;
+      if (smallLamp) smallLamp.scale.set(1, 1, 1);
+      if (smallHead && smallHeadInitialQuat) smallHead.quaternion.copy(smallHeadInitialQuat);
+    } else {
+      const p = elapsed / smallHop.crouch.duration;
+      const val = Math.sin(p * Math.PI); // 0 -> 1 -> 0
+      const squash = 1 - (0.3 * val);
+      const stretch = 1 + (0.1 * val);
+      if (smallLamp) smallLamp.scale.set(stretch, squash, stretch);
+      if (smallHead && smallHeadInitialQuat) {
+        const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -0.8 * val);
+        smallHead.quaternion.copy(smallHeadInitialQuat.clone().multiply(q));
+      }
+    }
+  }
 
   // small lamp Luxo hop handling
   if (smallHop.luxo && smallHop.luxo.active && smallHop.luxo.startPos) {
@@ -489,17 +544,56 @@ function animate() {
   }
 
   // big head flick + ball launch
+  if (bigHead) {
+    // If the ball exists and is not flying, animate the head to inspect it.
+    if (ball && !ballLaunched) {
+      const prevQuat = bigHead.quaternion.clone();
+
+      // First, establish the base orientation by looking at the ball
+      bigHead.lookAt(ball.position);
+
+      // Then, apply an additional rotation for the "inspection" animation.
+      // This rotates the head around its own local axes after it has aimed.
+      const inspectionSpeed = 0.7;
+      const yawAngle = Math.sin(inspectionTime * inspectionSpeed) * 0.35; // side-to-side
+      const pitchAngle = Math.cos(inspectionTime * inspectionSpeed * 1.5) * 0.2; // up-and-down
+
+      const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawAngle);
+      const pitchQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), pitchAngle);
+
+      // Combine the base lookAt quaternion with the local inspection rotation.
+      bigHead.quaternion.multiply(yawQuat).multiply(pitchQuat);
+
+      // --- Collision Check ---
+      let isColliding = false;
+      if (bigHeadCollider && smallHeadCollider && bigHead.geometry && bigHead.geometry.boundingSphere && smallHead && smallHead.geometry && smallHead.geometry.boundingSphere) {
+        // Update small head collider's world position
+        smallHeadCollider.copy(smallHead.geometry.boundingSphere).applyMatrix4(smallHead.matrixWorld);
+        
+        // Update big head collider based on its NEW potential transform
+        bigHead.updateWorldMatrix(true, false);
+        bigHeadCollider.copy(bigHead.geometry.boundingSphere).applyMatrix4(bigHead.matrixWorld);
+
+        if (bigHeadCollider.intersectsSphere(smallHeadCollider)) {
+          isColliding = true;
+          bigHead.quaternion.copy(prevQuat); // Halt: revert to pre-animation rotation for this frame
+          inspectionTimeDirection = -1.5; // Go back: reverse animation time, a bit faster
+          reboundUntil = t + 0.4; // Rebound for 0.4 seconds
+        }
+      }
+    } else if (smallHead) { // Fallback to original behavior: look at small head
+      smallHead.getWorldPosition(_tmpVec);
+      bigHead.lookAt(_tmpVec);
+    } else {
+      const target = smallLampRoot ? smallLampRoot.position : (smallLamp ? smallLamp.position : null);
+      if (target) bigHead.lookAt(target);
+    }
+  }
+
   if (bigHead && bigHeadFlick.active) {
     const elapsed = t - bigHeadFlick.startTime;
     const p = Math.min(elapsed / bigHeadFlick.duration, 1);
     bigHead.rotation.z = bigHeadFlick.angle * Math.sin(p * Math.PI);
-
-    if (bigBulb && bigHead) {
-      bigHead.getWorldPosition(_tmpVec); bigHead.getWorldQuaternion(_tmpQuat);
-      const targetWorld = _tmpVec.clone().add(_tmpOffset.clone().applyQuaternion(_tmpQuat));
-      if (bigBulb.parent) bigBulb.parent.worldToLocal(targetWorld);
-      bigBulb.position.lerp(targetWorld, 0.6);
-    }
 
     if (!ballLaunched && p >= 0.25 && ball) {
       bigHead.getWorldPosition(_tmpVec); bigHead.getWorldQuaternion(_tmpQuat);
@@ -578,6 +672,16 @@ function setupPartsForGLTF(gltf) {
     }
   });
 
+  smallHead = gltf.scene.getObjectByName('Head');
+  if (smallHead) {
+    smallHeadInitialQuat = smallHead.quaternion.clone();
+    if (smallHead.geometry) {
+      smallHead.geometry.computeBoundingSphere();
+      // Initialize collider, will be updated in animate()
+      if (!smallHeadCollider) smallHeadCollider = new THREE.Sphere();
+    }
+  }
+
   bigLampParts.forEach(name => {
     const o = gltf.scene.getObjectByName(name);
     if (o && o.isMesh) {
@@ -632,10 +736,10 @@ function setupPartsForGLTF(gltf) {
       smallBulb.material.emissiveIntensity = SMALL_BULB_EMISSIVE;
     }
 
-    smallBulbLight = new THREE.PointLight(0xfff2cc, 20, 8, 2);
+    smallBulbLight = new THREE.PointLight(0xfff2cc, 20, 40, 2);
     smallBulbLight.castShadow = true;
     smallBulbLight.shadow.mapSize.set(512, 512);
-    smallBulbLight.shadow.bias = 0.1;
+    smallBulbLight.shadow.bias = -0.0001;
     if (smallBulb.geometry) {
       smallBulb.geometry.computeBoundingBox();
       const center = new THREE.Vector3();
