@@ -74,6 +74,10 @@ renderer.domElement.addEventListener('mousedown', (e) => {
     e.preventDefault();
     return;
   }
+  // // Trigger animation on normal left click
+  // if (e.button === 0) {
+  //   playOnceSequence();
+  // }
 });
 
 window.addEventListener('mousemove', (e) => {
@@ -107,10 +111,6 @@ var color = 0xFFFFFF;
 var intensity = 0.12;
 var light = new THREE.AmbientLight(color, intensity);
 scene.add(light);
-scene.remove(ambientlighthelper);
-
-var ambientlighthelper = new THREE.PointLightHelper(light);
-// scene.add(ambientlighthelper);
 
 // Directional Light
 color = 0xFFFFFF;
@@ -129,9 +129,6 @@ light.shadow.camera.bottom = -10
 // scene.add(new THREE.CameraHelper(light.shadow.camera))
 scene.add(light);
 scene.add(light.target);
-
-var directionalLightHelper = new THREE.DirectionalLightHelper(light);
-// scene.add(directionalLightHelper);
 
 let bigBulb;
 let bulbLight;
@@ -154,11 +151,6 @@ const SMALL_BULB_LIGHT_INTENSITY = 50;
 let smallLampStartPos = null;
 let smallHop = {
   enabled: false,
-  radius: 2.0,
-  speed: 1.2,
-  height: 1.2,
-  offset: new THREE.Vector3(0,0,0),
-  startPos: null,
   luxo: { active: false }
 };
 
@@ -178,7 +170,6 @@ let bigHeadFlick = { active: false, startTime: 0, duration: 0.9, angle: -1.2 };
 
 // positions and temps for bulb/lamp follow
 let lampStartPos = null;
-let bigBulbStartPos = null;
 let currentGltfScene = null;
 let smallHeadInitialQuat = null;
 let bigHeadInitialQuat = null;
@@ -277,7 +268,6 @@ if (typeof window !== 'undefined') {
   };
 }
 
-let mixer;
 const loader = new GLTFLoader();
 loader.load('coloredluxojr.glb', (gltf) => {
   scene.add(gltf.scene);
@@ -327,9 +317,6 @@ loader.load('coloredluxojr.glb', (gltf) => {
       if (!bigHeadCollider) bigHeadCollider = new THREE.Sphere();
     }
   }
-
-  // record big bulb's start (local) position so we can restore it after flick
-  bigBulbStartPos = bigBulb.position.clone();
 
   // Find the root of the lamp hierarchy (ancestor of BigBulb)
   let obj = bigBulb;
@@ -381,11 +368,7 @@ loader.load('coloredluxojr.glb', (gltf) => {
   // attach to bulb
   bigBulb.add(bulbLight);
   const bulbLightHelper = new THREE.PointLightHelper(bulbLight, 0.5);
-  bigBulb.add(bulbLightHelper);
-
-  // Move small lamp to the right relative to the *current* camera view
-  // (useful to adjust start position without editing the glb)
-  // try { moveSmallLampRight(1.5); } catch(e) { /* ignore if not ready */ }
+  // bigBulb.add(bulbLightHelper);
 
 });
 renderer.outputEncoding = THREE.sRGBEncoding;
@@ -424,28 +407,6 @@ function triggerFlick() {
   bigHeadFlick.active = true;
   bigHeadFlick.startTime = clock.getElapsedTime();
   ballLaunched = false;
-}
-
-// Move the small lamp to the right relative to the camera view
-function moveSmallLampRight(amount = 1.5) {
-  if (!smallLamp && !smallLampRoot) {
-    console.warn('moveSmallLampRight: small lamp not available yet');
-    return;
-  }
-  // camera.getWorldDirection gives the forward vector
-  const forward = new THREE.Vector3();
-  camera.getWorldDirection(forward);
-  // right = forward x up
-  const right = forward.clone().cross(camera.up).normalize();
-  const delta = right.multiplyScalar(amount);
-  if (smallLampRoot) {
-    smallLampRoot.position.add(delta);
-    smallLampStartPos = smallLampRoot.position.clone();
-  } else if (smallLamp) {
-    smallLamp.position.add(delta);
-    smallLampStartPos = smallLamp.position.clone();
-  }
-  console.log('Moved small lamp right by', amount, 'units (camera space)');
 }
 
 // Play the full sequence once (small hop -> flick -> ball launch)
@@ -576,7 +537,6 @@ function animate() {
   requestAnimationFrame(animate);
 
   const delta = clock.getDelta();
-  if (mixer) mixer.update(delta);
 
   // update controls so camera remains interactive during play
   if (typeof controls !== 'undefined' && controls) controls.update();
@@ -634,7 +594,7 @@ function animate() {
         const squash = 1 - Math.min(0.5, impact * 0.4);
         const stretch = 1 + Math.min(0.35, impact * 0.3);
         if (smallLamp) smallLamp.scale.set(stretch, squash, stretch);
-        if (smallLamp) smallLamp.rotation.z = Math.sin(Math.PI * tLocal) * 0.18;
+        if (smallLamp) smallLamp.rotation.z = Math.sin(Math.PI * tLocal) * 0.3;
         break;
       }
     }
@@ -845,7 +805,7 @@ function setupPartsForGLTF(gltf) {
     }
     smallBulb.add(smallBulbLight);
     const smallBulbLightHelper = new THREE.PointLightHelper(smallBulbLight, 0.5);
-    smallBulb.add(smallBulbLightHelper);
+    // smallBulb.add(smallBulbLightHelper);
 
     // record starting position for hop animation (apply right offset)
     if (smallLamp) {
